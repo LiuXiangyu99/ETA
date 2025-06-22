@@ -1,0 +1,379 @@
+---
+title: 'R Notebook: Cryptocurrency 2025'
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+#  Set directory, source code
+
+```{r}
+rm(list=ls())
+source("./TailCausal2025.R")
+
+## Set the directory as where you put this file
+setwd("/Users/xyliu/Desktop/Github\ project")
+
+library(crypto2)
+library(dplyr)
+```
+
+
+Set-up data if not done already. Do not run if not necessary
+
+```{r}
+## Please dont run if Crypto21to24top10close.csv is already ready!!
+
+target_symbols <- c("BTC", "LTC", "XRP", "DOGE", "XLM", "ETH", "TRX", "ADA", "SOL", "DOT")
+
+# Get a list of active cryptocurrencies that had data during the year 2020
+coin_list_2020onwards <- crypto_list(only_active=TRUE) %>% dplyr::filter(first_historical_data<="2020-12-31", last_historical_data>="2020-01-01")
+
+# Identify indices of target symbols within the filtered coin list
+indices <- which(coin_list_2020onwards$symbol %in% target_symbols)
+print(indices)
+
+# Download daily historical data (2021–2024) for the selected coins
+coins_2021to2024 <- crypto_history(coin_list = coin_list_2020onwards[indices,],
+start_date = "2021-01-01", end_date="2024-12-31", interval="1d")
+write.csv(coins_2021to2024[,c(4,5,15)], file = "./data/crypto21to24.csv")
+
+# Save a subset of the data (symbol, timestamp, close) to CSV
+Cr21to24<-read.csv("./data/crypto21to24.csv")
+
+# Initialize the output tibble with the date column based on BTC's timestamps
+Crmod21to24<-as_tibble(as.Date(substr(as.matrix(Cr21to24 %>% filter(symbol == "BTC") %>% select(timestamp)),1,10))) 
+
+# For each coin, extract the 'close' price and bind it as a new column
+for (i in unique(Cr21to24$symbol))
+Crmod21to24<-bind_cols(Crmod21to24,Cr21to24 %>% filter(symbol == i) %>% select(close))
+colnames(Crmod21to24)<-c("Date",unique(Cr21to24$symbol))
+write.csv(Crmod21to24, file = "./data/Crypto21to24top10close.csv")
+```
+
+
+
+```{r}
+Crmod21to24<-read.csv("./data/Crypto21to24top10close.csv")
+
+
+crypto<-Crmod21to24[,3:12]
+
+# Define path components for output plots
+pre<- "./results/2021to2024/"
+post<-"21to24"
+end1<-"pos.pdf"
+end2<-"neg.pdf"
+end3<-".pdf"
+
+# Compute daily log-returns (approximates percentage changes)
+# cryptopos highlights large positive returns
+cryptopos<-apply(log(crypto),2,diff)    #### high positive return value
+cryptoneg<-apply(-log(crypto),2,diff)   #### high negative return value
+
+n<-dim(cryptopos)[1]
+```
+
+Dont run if not needed
+
+```{r}
+# Dont run it line by line, run the whole block
+
+
+#acf
+
+# Set filename prefix for trend plots of crypto log-returns
+mid<-"Crtrend"
+# Generate PDF plot for positive return trends
+pdf(paste(pre,mid,post,end1,sep=""), width=20,height=8)
+par(mfrow=c(2,5))
+for(i in 1:10)
+  {plot(as.Date(Crmod21to24$Date[1:n]),pmax(cryptopos[1:n,i],0),main=colnames(cryptopos)[i],type="l", xlab = "time", ylab ="return", ylim=c(0,0.5))
+abline(h=sort(cryptopos[,i],decreasing=TRUE)[20],col="red")}
+dev.off()
+
+# Generate PDF plot for negative return trends (transformed to positive values)
+pdf(paste(pre,mid,post,end2,sep=""),width=20,height=8)
+par(mfrow=c(2,5))
+for(i in 1:10)
+  {plot(as.Date(Crmod21to24$Date[1:n]),pmax(cryptoneg[1:n,i],0),main=colnames(cryptopos)[i],type="l", xlab = "time", ylab ="return",ylim=c(0,0.5))
+abline(h=sort(cryptoneg[,i],decreasing=TRUE)[20],col="red")}
+dev.off()
+
+# Generate PDF for autocorrelation plots of each asset's log-return series
+mid<-"ACFcryptodiff"
+pdf(paste(pre,mid,post,end3,sep=""),width=20,height=8)
+par(mfrow=c(2,5))
+for(i in 1:10)
+  acf(cryptopos[,i],main=colnames(cryptopos)[i])
+dev.off()
+
+#pdf(paste(pre,mid,post,end2,sep=""),width=20,height=8)
+#par(mfrow=c(2,5))
+#for(i in 1:10)
+#  acf(cryptoneg[,i],main=colnames(cryptoneg)[i])
+#dev.off()
+```
+
+
+
+
+
+
+```{r}
+
+## tnum for ETA and DELTA
+
+t1<-100
+t2<-400
+
+# ETA
+
+mid<- "CrETA"
+
+pdf(paste(pre,mid,post,end1,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotETA(cryptopos[,i],cryptopos[,j],tstart=t1,tend=t2,cap=paste(colnames(cryptopos)[i],"vs",colnames(cryptopos)[j],sep=" "),ytop=1)
+}
+ dev.off()
+ 
+ 
+
+pdf(paste(pre,mid,post,end2,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotETA(cryptoneg[,i],cryptoneg[,j],tstart=t1,tend=t2,cap=paste(colnames(cryptoneg)[i],"vs",colnames(cryptoneg)[j],sep=" "),ytop=1)
+}
+ dev.off()
+ 
+
+# Delta 
+
+mid<-"CrDelta"
+
+
+pdf(paste(pre,mid,post,end1,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotDelta(cryptopos[,i],cryptopos[,j],tstart=t1,tend=t2,cap=paste(colnames(cryptopos)[i],"vs",colnames(cryptopos)[j],sep=" "),lt=0.2)
+}
+ dev.off()
+ 
+
+pdf(paste(pre,mid,post,end2,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotDelta(cryptoneg[,i],cryptoneg[,j],tstart=t1,tend=t2,cap=paste(colnames(cryptoneg)[i],"vs",colnames(cryptoneg)[j],sep=" "),lt=0.2)
+}
+ dev.off()
+ 
+ 
+```
+
+
+
+
+
+
+```{r}
+
+g1<-10
+t1<-100
+t2<-400
+B1<-100
+
+
+mid<-"BTCvsallDeltaboot"
+sindex<-seq(t1,t2,g1)
+
+pdf(paste(pre,mid,post,end1,sep=""),width=15,height=15)
+par(mfrow=c(3,3))
+for (i in 2:10)
+{
+Delta_cryp<-ETAmeas(cryptopos[,1],cryptopos[,i],t2)-ETAmeas(cryptopos[,i],cryptopos[,1],t2)
+
+Delta_cryp_boot<-DELTAmeas_boot(cryptopos[,1],cryptopos[,i],tstart=t1,tend=t2,gap=g1,B=B1)
+
+Del_q95<-Delta_cryp[sindex]+qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+Del_q05<-Delta_cryp[sindex]-qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+#Del_q95_d<-apply(Delta_cryp_boot[[3]],2,q95)
+#Del_q05_d<-apply(Delta_cryp_boot[[3]],2,q05)
+a1<-c(sindex,sindex[length(sindex):1])
+a2<-c(Del_q05,Del_q95[length(Del_q95):1])
+
+plot(sindex,Delta_cryp[sindex], type="l", ylim=c(-0.5,0.5),xlab="order statistics",ylab=expression(Delta),main=paste(colnames(cryptopos)[1],"vs",colnames(cryptopos)[i],sep=" "))
+lines(sindex, Del_q95, type="l", col="blue")
+lines(sindex, Del_q05, type="l", col="blue")
+polygon(a1,a2, col = 'lightblue',border = "blue")
+lines(sindex,Delta_cryp[sindex],lwd=2)
+abline(h=0,col="red",lty="dashed",lwd=2)
+#lines(sindex, Del_q95_d, type="l", col="magenta")
+#lines(sindex, Del_q05_d, type="l", col="magenta")
+
+}
+dev.off()
+```
+
+
+
+```{r}
+
+g1<-10
+t1<-100
+t2<-400
+B1<-100
+
+
+mid<-"BTCvsallDeltaboot"
+sindex<-seq(t1,t2,g1)
+
+pdf(paste(pre,mid,post,end2,sep=""),width=15,height=15)
+par(mfrow=c(3,3))
+for (i in 2:10)
+{
+Delta_cryp<-ETAmeas(cryptoneg[,1],cryptoneg[,i],t2)-ETAmeas(cryptoneg[,i],cryptoneg[,1],t2)
+
+Delta_cryp_boot<-DELTAmeas_boot(cryptoneg[,1],cryptoneg[,i],tstart=t1,tend=t2,gap=g1,B=B1)
+
+Del_q95<-Delta_cryp[sindex]+qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+Del_q05<-Delta_cryp[sindex]-qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+#Del_q95<-apply(Delta_cryp_boot,2,q95)
+#Del_q05<-apply(Delta_cryp_boot,2,q05)
+a1<-c(sindex,sindex[length(sindex):1])
+a2<-c(Del_q05,Del_q95[length(Del_q95):1])
+
+
+plot(sindex,Delta_cryp[sindex], type="l", ylim=c(-0.5,0.5),xlab="order statistics",ylab=expression(Delta),main=paste(colnames(cryptopos)[1],"vs",colnames(cryptopos)[i],sep=" "))
+lines(sindex, Del_q95, type="l", col="blue")
+lines(sindex, Del_q05, type="l", col="blue")
+polygon(a1,a2, col = 'lightblue',border = "blue")
+lines(sindex,Delta_cryp[sindex],lwd=2)
+abline(h=0,col="red",lty="dashed",lwd=2)
+}
+dev.off()
+```
+
+
+```{r}
+
+g1<-10
+t1<-100
+t2<-400
+B1<-100
+
+
+mid<-"BTCvsallDeltaboot"
+sindex<-seq(t1,t2,g1)
+
+pdf(paste(pre,mid,post,end1,sep=""),width=15,height=15)
+par(mfrow=c(3,3))
+for (i in 2:10)
+{
+Delta_cryp<-ETAmeas(cryptopos[,1],cryptopos[,i],t2)-ETAmeas(cryptopos[,i],cryptopos[,1],t2)
+
+Delta_cryp_boot<-DELTAmeas_boot(cryptopos[,1],cryptopos[,i],tstart=t1,tend=t2,gap=g1,B=B1)
+
+Del_q95<-Delta_cryp[sindex]+qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+Del_q05<-Delta_cryp[sindex]-qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+#Del_q95_d<-apply(Delta_cryp_boot[[3]],2,q95)
+#Del_q05_d<-apply(Delta_cryp_boot[[3]],2,q05)
+a1<-c(sindex,sindex[length(sindex):1])
+a2<-c(Del_q05,Del_q95[length(Del_q95):1])
+
+plot(sindex,Delta_cryp[sindex], type="l", ylim=c(-0.5,0.5),xlab="order statistics",ylab=expression(Delta),main=paste(colnames(cryptopos)[1],"vs",colnames(cryptopos)[i],sep=" "))
+lines(sindex, Del_q95, type="l", col="blue")
+lines(sindex, Del_q05, type="l", col="blue")
+polygon(a1,a2, col = 'lightblue',border = "blue")
+lines(sindex,Delta_cryp[sindex],lwd=2)
+abline(h=0,col="red",lty="dashed",lwd=2)
+#lines(sindex, Del_q95_d, type="l", col="magenta")
+#lines(sindex, Del_q05_d, type="l", col="magenta")
+
+}
+dev.off()
+```
+
+
+
+```{r}
+
+g1<-10
+t1<-100
+t2<-400
+B1<-100
+
+
+mid<-"BTCposvsallnegDeltaboot"
+sindex<-seq(t1,t2,g1)
+
+pdf(paste(pre,mid,post,end2,sep=""),width=15,height=15)
+par(mfrow=c(3,3))
+for (i in 2:10)
+{
+Delta_cryp<-ETAmeas(cryptopos[,1],cryptoneg[,i],t2)-ETAmeas(cryptoneg[,i],cryptopos[,1],t2)
+
+Delta_cryp_boot<-DELTAmeas_boot(cryptopos[,1],cryptoneg[,i],tstart=t1,tend=t2,gap=g1,B=B1)
+
+Del_q95<-Delta_cryp[sindex]+qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+Del_q05<-Delta_cryp[sindex]-qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+#Del_q95<-apply(Delta_cryp_boot,2,q95)
+#Del_q05<-apply(Delta_cryp_boot,2,q05)
+a1<-c(sindex,sindex[length(sindex):1])
+a2<-c(Del_q05,Del_q95[length(Del_q95):1])
+
+
+plot(sindex,Delta_cryp[sindex], type="l", ylim=c(-0.25,0.25),xlab="order statistics",ylab=expression(Delta),main=paste(colnames(cryptopos)[1],"(+) vs",colnames(cryptopos)[i], "(-)",sep=" "))
+lines(sindex, Del_q95, type="l", col="blue")
+lines(sindex, Del_q05, type="l", col="blue")
+polygon(a1,a2, col = 'lightblue',border = "blue")
+lines(sindex,Delta_cryp[sindex],lwd=2)
+abline(h=0,col="red",lty="dashed",lwd=2)
+}
+dev.off()
+```
+
+
+
+
+```{r}
+
+g1<-10
+t1<-100
+t2<-400
+B1<-100
+
+
+mid<-"BTCnegvsallposDeltaboot"
+sindex<-seq(t1,t2,g1)
+
+pdf(paste(pre,mid,post,end2,sep=""),width=15,height=15)
+par(mfrow=c(3,3))
+for (i in 2:10)
+{
+Delta_cryp<-ETAmeas(cryptoneg[,1],cryptopos[,i],t2)-ETAmeas(cryptopos[,i],cryptoneg[,1],t2)
+
+Delta_cryp_boot<-DELTAmeas_boot(cryptoneg[,1],cryptopos[,i],tstart=t1,tend=t2,gap=g1,B=B1)
+
+Del_q95<-Delta_cryp[sindex]+qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+Del_q05<-Delta_cryp[sindex]-qnorm(0.975)*sqrt(apply(Delta_cryp_boot[[3]],2,var))/sqrt(B1)
+#Del_q95<-apply(Delta_cryp_boot,2,q95)
+#Del_q05<-apply(Delta_cryp_boot,2,q05)
+a1<-c(sindex,sindex[length(sindex):1])
+a2<-c(Del_q05,Del_q95[length(Del_q95):1])
+
+
+plot(sindex,Delta_cryp[sindex], type="l", ylim=c(-0.25,0.25),xlab="order statistics",ylab=expression(Delta),main=paste(colnames(cryptopos)[1],"(-) vs",colnames(cryptopos)[i], "(+)",sep=" "))
+lines(sindex, Del_q95, type="l", col="blue")
+lines(sindex, Del_q05, type="l", col="blue")
+polygon(a1,a2, col = 'lightblue',border = "blue")
+lines(sindex,Delta_cryp[sindex],lwd=2)
+abline(h=0,col="red",lty="dashed",lwd=2)
+}
+dev.off()
+```
+

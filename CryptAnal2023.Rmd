@@ -1,0 +1,157 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+
+rm(list=ls())
+source("TailCausal2023.R")
+## Set the directory as where you put this file
+setwd("/Users/xyliu/Desktop/Github\ project")
+
+library(crypto2)
+library(dplyr)
+```
+
+
+```{r}
+# Define the target cryptocurrency symbols that we are interested in analyzing
+target_symbols <- c("BTC", "LTC", "XRP", "DOGE", "XLM", "ETH", "TRX", "ADA", "SOL", "DOT")
+
+# Retrieve the list of cryptocurrencies that are currently active
+# Then filter to include only those coins that were active at any time during the year 2020
+coin_list_2020onwards <- crypto_list(only_active=TRUE) %>% dplyr::filter(first_historical_data<="2020-12-31", last_historical_data>="2020-01-01")
+
+# Identify the indices (row numbers) in the filtered coin list that match the target symbols
+indices <- which(coin_list_2020onwards$symbol %in% target_symbols)
+
+print(indices)
+```
+
+```{r}
+# Download historical daily price data from Jan 1, 2021 to Dec 31, 2024
+coins_2021to2024 <- crypto_history(coin_list = coin_list_2020onwards[indices,],
+                                   start_date = "2021-01-01", end_date="2024-12-31", interval="1d")
+write.csv(coins_2021to2024[,c(4,5,15)], file = "./data/crypto21to24_old.csv")
+```
+
+```{r}
+# Initialize a tibble with the Date column.
+# It extracts the timestamp of BTC rows, slices the first 10 characters (YYYY-MM-DD),
+# converts to Date format, and wraps in a tibble.
+Cr21to24<-read.csv("./data/crypto21to24_old.csv")
+Crmod21to24<-as_tibble(as.Date(substr(as.matrix(Cr21to24 %>% filter(symbol == "BTC") %>% select(timestamp)),1,10))) 
+
+
+# Loop over each unique symbol and bind its 'close' price to the tibble
+for (i in unique(Cr21to24$symbol))
+Crmod21to24<-bind_cols(Crmod21to24,Cr21to24 %>% filter(symbol == i) %>% select(close))
+colnames(Crmod21to24)<-c("Date",unique(Cr21to24$symbol))
+```
+
+```{r}
+
+# Plotting and export to pdf files
+# Dont run the code line by line, run the whole block
+
+crypto<-Crmod21to24 %>% select(!(Date))
+pre<- "./results/2021to2024/old/"
+post<-"21to24"
+end1<-"pos.pdf"
+end2<-"neg.pdf"
+  
+cryptopos<-apply(log(crypto),2,diff)   #### high positive return value
+cryptoneg<-apply(-log(crypto),2,diff)   #### high negative return value
+
+
+#acf
+mid<-"CrACF"
+pdf(paste(pre,mid,post,end1,sep=""),width=20,height=8)
+par(mfrow=c(2,5))
+for(i in 1:10)
+  acf(cryptopos[,i],main=colnames(cryptopos)[i])
+dev.off()
+
+
+pdf(paste(pre,mid,post,end2,sep=""),width=20,height=8)
+par(mfrow=c(2,5))
+for(i in 1:10)
+  acf(cryptoneg[,i],main=colnames(cryptoneg)[i])
+dev.off()
+
+
+# just plot
+par(mfrow=c(2,5))  # 2 rows × 5 columns layout
+for (i in 1:10) {
+  acf(cryptopos[,i], main=colnames(cryptopos)[i])
+}
+
+# Plot ACFs of negative log returns
+par(mfrow=c(2,5))  # Reset layout before second set
+for (i in 1:10) {
+  acf(cryptoneg[,i], main=colnames(cryptoneg)[i])
+}
+
+
+## tnum for ETA and DELTA
+
+tnum<-400
+
+# ETA
+
+mid<- "CrETA"
+
+pdf(paste(pre,mid,post,end1,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotETA(cryptopos[,i],cryptopos[,j],t=tnum,cap=paste(colnames(cryptopos)[i],"vs",colnames(cryptopos)[j],sep=" "),ytop=1)
+}
+ dev.off()
+ 
+ 
+
+pdf(paste(pre,mid,post,end2,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotETA(cryptoneg[,i],cryptoneg[,j],t=tnum,cap=paste(colnames(cryptoneg)[i],"vs",colnames(cryptoneg)[j],sep=" "),ytop=1)
+}
+ dev.off()
+ 
+
+# Delta 
+
+mid<-"CrDelta"
+
+
+pdf(paste(pre,mid,post,end1,sep=""),width=45,height=150)
+par(mfrow=c(15,3))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotDelta(cryptopos[,i],cryptopos[,j],t=tnum,cap=paste(colnames(cryptopos)[i],"vs",colnames(cryptopos)[j],sep=" "))
+}
+ dev.off()
+ 
+
+pdf(paste(pre,mid,post,end2,sep=""),width=45,height=25)
+par(mfrow=c(5,9))
+for(i in 1:9)
+{ for (j in (i+1):10)
+ PlotDelta(cryptoneg[,i],cryptoneg[,j],t=tnum,cap=paste(colnames(cryptoneg)[i],"vs",colnames(cryptoneg)[j],sep=" "))
+}
+ dev.off()
+```
+

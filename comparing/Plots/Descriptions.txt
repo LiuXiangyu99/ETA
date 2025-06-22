@@ -1,0 +1,6 @@
+Samples{i}{j}(k = {n})
+
+i means the data comes from ith copula
+j = XY means we are study estimator "X->Y" j = YX means we are study estimator "Y->X" 
+n means the number of the choosen tail samples 
+
