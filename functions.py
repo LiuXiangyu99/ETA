@@ -135,17 +135,15 @@ def inverse_cdf(f):
         return x
     return (lambda p: bisearch(f, p))
 
-def sample_one(c): 
-    """    
-    pdf of c is ctns bivariate copula
-    define helper function
-    """ 
+def sample_one(c):      # where c is bivariate copula
+    # define helper function
     cdf_du = grad(c, 0)
     u, t = np.random.random(2)
     cond_cdf = lambda v: cdf_du(u, v)
     inv_cond_cdf = inverse_cdf(cond_cdf)
     v = inv_cond_cdf(t)
     return u, v
+
 
 def sampling(c, n):
     data = np.zeros([n, 2])
@@ -160,7 +158,7 @@ def gumbel(u, v, delta=3):
 
 
 def asymmetrization(c, a, b):
-    return (lambda u, v: u**a * v**b * c(u**(1-a), v**(1-b)))
+    return (lambda u, v: u**(1-a) * v**(1-b) * c(u**a, v**b))
 
 
 # Sample from copula C(u, v; t) = min(u, tv + (1-t)(u + v - 1)_{+})
